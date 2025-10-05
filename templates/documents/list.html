@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Writer Buddy{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-6 py-16" x-data="documentList()">
+    <header class="mb-16 text-center">
+        <h1 class="text-5xl mb-8 font-light">Writer Buddy</h1>
+    </header>
+
+    <div class="mb-12">
+        <input 
+            type="text" 
+            x-model="searchQuery"
+            @input="filterDocuments()"
+            placeholder="Search..."
+            class="w-full px-4 py-3 border border-accent bg-transparent focus:outline-none focus:border-gray-400 transition-colors text-lg"
+        >
+    </div>
+
+    <div x-show="filteredDocuments.length > 0" class="space-y-8">
+        <template x-for="doc in filteredDocuments" :key="doc.id">
+            <article class="border-b border-accent pb-6 group">
+                <a :href="`/${doc.id}/`" class="block">
+                    <h2 class="text-2xl mb-2 group-hover:text-accent transition-colors" x-text="doc.title"></h2>
+                    <p class="text-sm text-gray-500" x-text="new Date(doc.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })"></p>
+                </a>
+                
+                <div class="mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                        @click.prevent="deleteDocument(doc.id)"
+                        class="text-sm text-gray-500 hover:text-red-700"
+                    >
+                        Delete
+                    </button>
+                </div>
+            </article>
+        </template>
+    </div>
+
+    <div x-show="filteredDocuments.length === 0" class="text-center py-24 text-gray-500">
+        <p class="text-xl mb-4">No documents yet</p>
+        <p>Begin writing to fill this space.</p>
+    </div>
+
+    <div class="mt-16 text-center">
+        <form method="post" action="{% url 'document_create' %}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="text-lg hover:text-accent transition-colors border-b border-current pb-1">
+                + New Document
+            </button>
+        </form>
+    </div>
+
+    <footer class="mt-24 pt-8 border-t border-accent text-center text-sm text-gray-600">
+        <p>Writer Buddy © 2025</p>
+    </footer>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function documentList() {
+    return {
+        documents: [],
+        filteredDocuments: [],
+        searchQuery: '',
+
+        init() {
+            this.documents = [
+                {% for doc in documents %}
+                {
+                    id: {{ doc.id }},
+                    title: '{{ doc.title|escapejs }}',
+                    updated_at: '{{ doc.updated_at|date:"c" }}'
+                }{% if not forloop.last %},{% endif %}
+                {% endfor %}
+            ];
+            this.filterDocuments();
+        },
+
+        filterDocuments() {
+            this.filteredDocuments = this.documents.filter(doc => {
+                return !this.searchQuery || 
+                    doc.title.toLowerCase().includes(this.searchQuery.toLowerCase());
+            });
+        },
+
+        async deleteDocument(id) {
+            if (!confirm('Are you sure you want to delete this document?')) return;
+
+            try {
+                const response = await fetch(`/${id}/delete/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    }
+                });
+                
+                if (response.ok) {
+                    this.documents = this.documents.filter(doc => doc.id !== id);
+                    this.filterDocuments();
+                }
+            } catch (error) {
+                console.error('Failed to delete document:', error);
+            }
+        }
+    };
+}
+</script>
+{% endblock %}
